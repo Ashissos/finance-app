@@ -15,7 +15,6 @@ import {
 } from 'recharts';
 
 export default function FinanceTrackerApp() {
-
   const [transactions, setTransactions] = useState(() => {
     const saved = localStorage.getItem('finance-transactions');
     return saved ? JSON.parse(saved) : [];
@@ -27,6 +26,7 @@ export default function FinanceTrackerApp() {
     category: 'Salary',
     amount: '',
     description: '',
+    paid: 'Paid',
   });
 
   useEffect(() => {
@@ -65,6 +65,7 @@ export default function FinanceTrackerApp() {
       category: 'Salary',
       amount: '',
       description: '',
+      paid: 'Paid',
     });
   };
 
@@ -78,6 +79,21 @@ export default function FinanceTrackerApp() {
 
   const totalExpense = transactions
     .filter((t) => t.type === 'Expense')
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const incomeTransactions = transactions.filter((t) => t.type === 'Income');
+
+  const billTransactions = transactions.filter(
+    (t) => t.type === 'Expense' && t.category === 'Bills'
+  );
+
+  const otherExpenseTransactions = transactions.filter(
+    (t) => t.type === 'Expense' && t.category !== 'Bills'
+  );
+
+  const totalBills = billTransactions.reduce((sum, t) => sum + t.amount, 0);
+  const unpaidBills = billTransactions
+    .filter((t) => t.paid === 'Unpaid')
     .reduce((sum, t) => sum + t.amount, 0);
 
   const savings = totalIncome - totalExpense;
@@ -123,20 +139,97 @@ export default function FinanceTrackerApp() {
       return acc;
     }, []);
 
-  const chartColors = ['#22c55e', '#ef4444', '#3b82f6', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899'];
+  const chartColors = [
+    '#22c55e',
+    '#ef4444',
+    '#3b82f6',
+    '#f59e0b',
+    '#8b5cf6',
+    '#06b6d4',
+    '#ec4899',
+  ];
+
+  const TransactionTable = ({ title, data, showPaid = false }) => (
+    <div className="bg-white rounded-3xl shadow-lg p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-2xl font-bold">{title}</h2>
+        <span className="text-gray-500">{data.length} entries</span>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-left">
+          <thead>
+            <tr className="border-b">
+              <th className="py-3">Date</th>
+              <th>Category</th>
+              <th>Description</th>
+              {showPaid && <th>Status</th>}
+              <th>Amount</th>
+              <th></th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {data.length === 0 ? (
+              <tr>
+                <td className="py-4 text-gray-500" colSpan={showPaid ? 6 : 5}>
+                  No records yet.
+                </td>
+              </tr>
+            ) : (
+              data.map((t) => (
+                <tr key={t.id} className="border-b hover:bg-gray-50">
+                  <td className="py-3">{t.date}</td>
+                  <td>{t.category}</td>
+                  <td>{t.description || '-'}</td>
+                  {showPaid && (
+                    <td>
+                      <span
+                        className={`px-3 py-1 rounded-full text-sm ${
+                          t.paid === 'Paid' ? 'bg-green-200' : 'bg-yellow-200'
+                        }`}
+                      >
+                        {t.paid || 'Paid'}
+                      </span>
+                    </td>
+                  )}
+                  <td className="font-semibold">${t.amount.toFixed(2)}</td>
+                  <td>
+                    <button
+                      onClick={() => deleteTransaction(t.id)}
+                      className="text-red-500 hover:underline"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gray-100 p-4 md:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="bg-white rounded-3xl shadow-lg p-6">
           <h1 className="text-3xl font-bold mb-2">Personal Finance Tracker</h1>
-          <p className="text-gray-500">Track income, expenses, and savings from your phone or PC.</p>
+          <p className="text-gray-500">
+            Track income, bills, expenses, and savings from your phone or PC.
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-green-100 rounded-2xl p-5 shadow">
             <h2 className="text-lg font-semibold">Total Income</h2>
             <p className="text-3xl font-bold mt-2">${totalIncome.toFixed(2)}</p>
+          </div>
+
+          <div className="bg-orange-100 rounded-2xl p-5 shadow">
+            <h2 className="text-lg font-semibold">Total Bills</h2>
+            <p className="text-3xl font-bold mt-2">${totalBills.toFixed(2)}</p>
           </div>
 
           <div className="bg-red-100 rounded-2xl p-5 shadow">
@@ -148,6 +241,11 @@ export default function FinanceTrackerApp() {
             <h2 className="text-lg font-semibold">Net Savings</h2>
             <p className="text-3xl font-bold mt-2">${savings.toFixed(2)}</p>
           </div>
+        </div>
+
+        <div className="bg-yellow-100 rounded-2xl p-5 shadow">
+          <h2 className="text-lg font-semibold">Unpaid Bills</h2>
+          <p className="text-3xl font-bold mt-2">${unpaidBills.toFixed(2)}</p>
         </div>
 
         <div className="bg-white rounded-3xl shadow-lg p-6 space-y-4">
@@ -189,9 +287,20 @@ export default function FinanceTrackerApp() {
             />
           </div>
 
+          {form.type === 'Expense' && form.category === 'Bills' && (
+            <select
+              value={form.paid}
+              onChange={(e) => setForm({ ...form, paid: e.target.value })}
+              className="border rounded-xl p-3 w-full"
+            >
+              <option>Paid</option>
+              <option>Unpaid</option>
+            </select>
+          )}
+
           <input
             type="text"
-            placeholder="Description"
+            placeholder="Description / bill name"
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
             className="border rounded-xl p-3 w-full"
@@ -242,7 +351,13 @@ export default function FinanceTrackerApp() {
                     <XAxis dataKey="date" />
                     <YAxis />
                     <Tooltip />
-                    <Line type="monotone" dataKey="savings" stroke="#3b82f6" strokeWidth={3} name="Savings" />
+                    <Line
+                      type="monotone"
+                      dataKey="savings"
+                      stroke="#3b82f6"
+                      strokeWidth={3}
+                      name="Savings"
+                    />
                   </LineChart>
                 </ResponsiveContainer>
               )}
@@ -269,7 +384,10 @@ export default function FinanceTrackerApp() {
                       label
                     >
                       {expenseByCategory.map((entry, index) => (
-                        <Cell key={entry.category} fill={chartColors[index % chartColors.length]} />
+                        <Cell
+                          key={entry.category}
+                          fill={chartColors[index % chartColors.length]}
+                        />
                       ))}
                     </Pie>
                     <Tooltip />
@@ -280,65 +398,17 @@ export default function FinanceTrackerApp() {
           </div>
         </div>
 
-        <div className="bg-white rounded-3xl shadow-lg p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold">Recent Transactions</h2>
-            <span className="text-gray-500">{transactions.length} entries</span>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b">
-                  <th className="py-3">Date</th>
-                  <th>Type</th>
-                  <th>Category</th>
-                  <th>Description</th>
-                  <th>Amount</th>
-                  <th></th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {transactions.map((t) => (
-                  <tr key={t.id} className="border-b hover:bg-gray-50">
-                    <td className="py-3">{t.date}</td>
-                    <td>
-                      <span
-                        className={`px-3 py-1 rounded-full text-sm ${
-                          t.type === 'Income'
-                            ? 'bg-green-200'
-                            : 'bg-red-200'
-                        }`}
-                      >
-                        {t.type}
-                      </span>
-                    </td>
-                    <td>{t.category}</td>
-                    <td>{t.description}</td>
-                    <td className="font-semibold">${t.amount.toFixed(2)}</td>
-                    <td>
-                      <button
-                        onClick={() => deleteTransaction(t.id)}
-                        className="text-red-500 hover:underline"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <TransactionTable title="Income Table" data={incomeTransactions} />
+        <TransactionTable title="Bills Table" data={billTransactions} showPaid />
+        <TransactionTable title="Other Expenses Table" data={otherExpenseTransactions} />
 
         <div className="bg-white rounded-3xl shadow-lg p-6">
           <h2 className="text-2xl font-bold mb-4">Savings Tips</h2>
           <ul className="space-y-2 text-gray-700 list-disc pl-5">
             <li>Try saving at least 20% of every income payment.</li>
+            <li>Pay important bills first before spending on wants.</li>
+            <li>Track unpaid bills weekly so you do not miss payments.</li>
             <li>Reduce unnecessary subscriptions and impulse purchases.</li>
-            <li>Track daily expenses consistently.</li>
-            <li>Invest part of your savings into skills or side businesses.</li>
             <li>Build an emergency fund equal to 3–6 months of expenses.</li>
           </ul>
         </div>
